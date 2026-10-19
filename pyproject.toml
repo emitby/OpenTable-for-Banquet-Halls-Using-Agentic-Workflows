@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "multi-agent-prototype"
+version = "0.1.0"
+description = "Banquet Concierge: an OpenTable-style banquet hall booking app run by cooperating Claude agents"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Edward Mitby" }]
+requires-python = ">=3.10"
+dependencies = [
+    "anthropic>=1.15",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "pydantic>=2.6",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "httpx>=0.27"]
+
+[project.scripts]
+banquet-cli = "banquet.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["banquet*"]
+
+[tool.setuptools.package-data]
+banquet = ["static/*.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
