@@ -1,6 +1,6 @@
-# Multi-Agent Prototype
+# OpenTable for Banquet Halls Using Agentic Workflows
 
-[![CI](https://github.com/emitby/Multi-Agent-Prototype/actions/workflows/ci.yml/badge.svg)](https://github.com/emitby/Multi-Agent-Prototype/actions/workflows/ci.yml)
+[![CI](https://github.com/emitby/OpenTable-for-Banquet-Halls-Using-Agentic-Workflows/actions/workflows/ci.yml/badge.svg)](https://github.com/emitby/OpenTable-for-Banquet-Halls-Using-Agentic-Workflows/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![Claude](https://img.shields.io/badge/model-claude--opus--5--5-8a5a2b)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -73,8 +73,8 @@ A typical turn: the Concierge sends the Scout a brief. The Scout runs a dozen se
 Requires **Python 3.10+** and an [Anthropic API key](https://console.anthropic.com/).
 
 ```bash
-git clone https://github.com/emitby/Multi-Agent-Prototype.git
-cd Multi-Agent-Prototype
+git clone https://github.com/emitby/OpenTable-for-Banquet-Halls-Using-Agentic-Workflows.git
+cd OpenTable-for-Banquet-Halls-Using-Agentic-Workflows
 
 python -m venv .venv
 .venv\Scripts\activate            # macOS/Linux: source .venv/bin/activate
