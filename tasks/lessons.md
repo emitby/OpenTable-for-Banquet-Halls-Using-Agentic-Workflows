@@ -22,4 +22,5 @@ Carried over from earlier projects (same user, same CLAUDE.md):
 - **Parallel tool calls break check-then-act rules.** Two holds sent together both passed the "fewer than 3" check. Lock the check and the write together.
 - **Third-party tools write to the system temp folder.** Chromium's throwaway profile went there until the launchers pointed TEMP/TMP/TMPDIR at `.cache/tmp`.
 - **Simulated numbers must behave like real ones.** Simulated reasoning was counted as output but never kept in the history, which made result tokens look tiny. Mirror the real API's behavior, and label simulations everywhere.
+- **Test on the oldest Python that CI runs, not just the local one** (2026-10-23). The guide used backslashes inside f-string expressions, which Python 3.12 allows and 3.10/3.11 reject, so CI failed after the push. There's now a tokenizer-based test that catches it on 3.12, and I watch CI after every push.
 - **Check what I say against the files.** I said this project had no CLAUDE.md when it did (2026-10-22). Re-check before stating that something is absent.

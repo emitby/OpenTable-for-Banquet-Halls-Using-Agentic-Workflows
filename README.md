@@ -1,9 +1,9 @@
-# OpenTable for Banquet Halls Using Agentic Workflows
+﻿# OpenTable for Banquet Halls Using Agentic Workflows
 
 [![CI](https://github.com/emitby/OpenTable-for-Banquet-Halls-Using-Agentic-Workflows/actions/workflows/ci.yml/badge.svg)](https://github.com/emitby/OpenTable-for-Banquet-Halls-Using-Agentic-Workflows/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![Claude](https://img.shields.io/badge/model-claude--opus--5--5-8a5a2b)
-![Tests](https://img.shields.io/badge/tests-171-success)
+![Tests](https://img.shields.io/badge/tests-205-success)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 **Banquet Concierge** is an OpenTable-style booking app for banquet halls **in every US state and DC**. A team of cooperating AI agents built on Claude runs it. **Guardrails are enforced in code**, and a **harness** traces every call and counts the tokens used by each agent and each tool.
@@ -14,9 +14,9 @@ You describe an event in plain language, for example:
 
 A **Concierge** agent works out what you need and sends two specialist agents to find venues, check dates and price the options. It then shows you venue cards and itemized quotes, and can place a free 72-hour hold. **Only you can confirm a booking.** No agent can commit you to a purchase.
 
-**→ [How it works (PDF): screens, functionality map, agentic workflow, guardrails, tokens per tool](docs/how-it-works.pdf)**
+**â†’ [How it works (PDF): screens, functionality map, agentic workflow, guardrails, tokens per tool](docs/how-it-works.pdf)**
 
-[Architecture](docs/architecture.md) · [Guardrails](docs/guardrails.md) · [Harness and token accounting](docs/harness.md) · [Example session](docs/example-session.md)
+[Architecture](docs/architecture.md) Â· [Guardrails](docs/guardrails.md) Â· [Harness and token accounting](docs/harness.md) Â· [Example session](docs/example-session.md)
 
 ---
 
@@ -41,9 +41,9 @@ flowchart LR
     G1 --> CON[Concierge]
     CON -->|brief| SC[Venue Scout]
     CON -->|brief| PA[Pricing Analyst]
-    SC -->|search · details · availability| DB[(BanquetService<br/>SQLite · 50 states + DC)]
-    PA -->|details · quotes| DB
-    CON -->|show venues · check availability · place hold G3| DB
+    SC -->|search Â· details Â· availability| DB[(BanquetService<br/>SQLite Â· 50 states + DC)]
+    PA -->|details Â· quotes| DB
+    CON -->|show venues Â· check availability Â· place hold G3| DB
     CON -->|reply| G4{G4 price grounding}
     G4 --> C
     C -->|confirm / cancel<br/>human only G7| DB
@@ -159,7 +159,7 @@ The SQLite database is created and seeded at `data/banquet-v2.db` on first run. 
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/api/chat` | `{message, session_id?}` → `{session_id, reply, venues, holds, events, guardrails}` |
+| `POST` | `/api/chat` | `{message, session_id?}` â†’ `{session_id, reply, venues, holds, events, guardrails}` |
 | `GET` | `/api/venues` | Browse venues (filters: `guest_count`, `state`, `city`, `style`, `cuisine`) |
 | `GET` | `/api/venues/{id}` | Venue details |
 | `GET` | `/api/sessions/{id}/holds` | Holds placed in a chat session |
@@ -174,18 +174,18 @@ Every response carries security headers: a CSP, `nosniff`, `X-Frame-Options: DEN
 .\run.ps1 test
 ```
 
-The 171 tests make **no API calls**, and they write nothing outside the project: they use in-memory databases and `.cache/test-output/`. Agent tests use a scripted fake client.
+The 205 tests make **no API calls**, and they write nothing outside the project: they use in-memory databases and `.cache/test-output/`. Agent tests use a scripted fake client.
 
 | Area | Covered |
 |---|---|
 | Booking rules | Search filters, guest minimums, dietary matching, date-aware search, pricing math, cross-venue package rejection, capacity limits |
 | Holds | Conflicts, expiry, confirmation, ownership checks, cancellation, date validation |
 | States | Every state and DC has venues; names and codes; unknown states; combined filters; per-state tax |
-| Guardrails | G1–G7, each blocked case and its benign look-alike |
+| Guardrails | G1â€“G7, each blocked case and its benign look-alike |
 | Agent loop | Tool execution, parallel tool calls, schema errors, unknown tools, refusals, turn limits, token budget |
 | Agent team | Delegation with a fresh context, venue cards, holds, no confirm/cancel tools, injections never reaching a model, hold limits, price grounding |
 | Harness | Token attribution math (including combined scenarios), all six scenarios passing all eight scorers, scorers failing on a broken transcript, redacted and confined traces |
-| API | Security headers, browsing by state, chat → hold → human confirmation, message limits |
+| API | Security headers, browsing by state, chat â†’ hold â†’ human confirmation, message limits |
 | CLAUDE.md | No `os`, no deletion calls, a docstring on every module, class and function, path confinement, a loopback-only server |
 
 CI runs the suite on Python 3.10 to 3.12 for every push and pull request.
@@ -194,30 +194,30 @@ CI runs the suite on Python 3.10 to 3.12 for every push and pull request.
 
 ```
 banquet/
-├── agents/
-│   ├── runtime.py        Agent loop on the Claude Messages API; events, G2 and G6 hooks
-│   └── team.py           Concierge, Venue Scout, Pricing Analyst; prompts, tools, G1/G3/G4
-├── harness/
-│   ├── trace.py          Run folders and redacted trace.jsonl / JSON reports
-│   ├── tokens.py         Token and cost ledger per agent and per tool
-│   ├── scenarios.py      Six scripted customer scenarios and eight scorers
-│   ├── simulated.py      SimulatedClient: scripted stand-in for Claude
-│   └── run_scenarios.py  Runs the suite (simulated or live) and writes runs/<id>/
-├── guardrails.py         G1–G7
-├── services.py           Booking rules: search, availability, quotes, holds
-├── states.py             States, sample cities, approximate sales-tax rates
-├── db.py                 SQLite schema and fictional seed data for every state
-├── paths.py              Path confinement and atomic writes (no os, no deletions)
-├── api.py, serve.py      FastAPI app and the 127.0.0.1 server entry point
-├── cli.py                Terminal chat
-├── guide.py              Builds docs/how-it-works.pdf
-└── static/index.html     Web UI (vanilla JS, no build step)
+â”œâ”€â”€ agents/
+â”‚   â”œâ”€â”€ runtime.py        Agent loop on the Claude Messages API; events, G2 and G6 hooks
+â”‚   â””â”€â”€ team.py           Concierge, Venue Scout, Pricing Analyst; prompts, tools, G1/G3/G4
+â”œâ”€â”€ harness/
+â”‚   â”œâ”€â”€ trace.py          Run folders and redacted trace.jsonl / JSON reports
+â”‚   â”œâ”€â”€ tokens.py         Token and cost ledger per agent and per tool
+â”‚   â”œâ”€â”€ scenarios.py      Six scripted customer scenarios and eight scorers
+â”‚   â”œâ”€â”€ simulated.py      SimulatedClient: scripted stand-in for Claude
+â”‚   â””â”€â”€ run_scenarios.py  Runs the suite (simulated or live) and writes runs/<id>/
+â”œâ”€â”€ guardrails.py         G1â€“G7
+â”œâ”€â”€ services.py           Booking rules: search, availability, quotes, holds
+â”œâ”€â”€ states.py             States, sample cities, approximate sales-tax rates
+â”œâ”€â”€ db.py                 SQLite schema and fictional seed data for every state
+â”œâ”€â”€ paths.py              Path confinement and atomic writes (no os, no deletions)
+â”œâ”€â”€ api.py, serve.py      FastAPI app and the 127.0.0.1 server entry point
+â”œâ”€â”€ cli.py                Terminal chat
+â”œâ”€â”€ guide.py              Builds docs/how-it-works.pdf
+â””â”€â”€ static/index.html     Web UI (vanilla JS, no build step)
 docs/
-├── how-it-works.pdf      Illustrated guide (generated)
-├── architecture.md       Design, sequence diagram, agent loop
-├── guardrails.md         Each guardrail: where it's enforced, its tests and its limits
-├── harness.md            Events, trace, token attribution, scenarios, scorers
-└── example-session.md    A real conversation from a live run (before the nationwide update)
+â”œâ”€â”€ how-it-works.pdf      Illustrated guide (generated)
+â”œâ”€â”€ architecture.md       Design, sequence diagram, agent loop
+â”œâ”€â”€ guardrails.md         Each guardrail: where it's enforced, its tests and its limits
+â”œâ”€â”€ harness.md            Events, trace, token attribution, scenarios, scorers
+â””â”€â”€ example-session.md    A real conversation from a live run (before the nationwide update)
 tests/                    pytest suite
 tasks/                    todo.md (plan and review) and lessons.md
 run.ps1, run.sh           Launchers
@@ -247,4 +247,4 @@ Ideas for next steps:
 
 ## License
 
-[MIT](LICENSE) © 2026 Edward Mitby
+[MIT](LICENSE) Â© 2026 Edward Mitby

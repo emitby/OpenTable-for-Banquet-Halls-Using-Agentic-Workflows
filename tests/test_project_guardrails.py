@@ -60,6 +60,27 @@ def test_every_module_class_and_function_has_a_docstring(path):
     assert not missing, f"{path.name}: {missing}"
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="on 3.10/3.11 ast.parse in the scans above already catches this")
+@pytest.mark.parametrize("path", SOURCES, ids=lambda p: p.relative_to(PROJECT_DIR).as_posix())
+def test_no_backslash_in_fstring_expressions(path):
+    """CI runs Python 3.10-3.12; before 3.12 an f-string's ``{...}`` part can't contain a backslash.
+
+    Regression: the PDF guide passed locally on 3.12 but failed to parse in CI on 3.11.
+    Python 3.12's tokenizer exposes f-string parts, so this catches it on 3.12 too.
+    """
+    import io
+    import tokenize
+    depth, bad = 0, []
+    for tok in tokenize.generate_tokens(io.StringIO(path.read_text(encoding="utf-8")).readline):
+        if tok.type == tokenize.FSTRING_START:
+            depth += 1
+        elif tok.type == tokenize.FSTRING_END:
+            depth -= 1
+        elif depth and tok.type == tokenize.STRING and "\\" in tok.string:
+            bad.append(tok.start[0])
+    assert not bad, f"{path.name}: backslash inside an f-string expression on line(s) {bad}"
+
+
 def test_confine_allows_project_paths():
     """Relative and absolute paths inside the project are allowed, and ':memory:' passes through."""
     assert confine("data/x.db") == PROJECT_DIR / "data" / "x.db"

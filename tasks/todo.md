@@ -1,4 +1,4 @@
-# Task 1: Guardrails, harness, venues in every state, PDF guide
+﻿# Task 1: Guardrails, harness, venues in every state, PDF guide
 
 User request (2026-10-22): "take the project and add guardrails and a harness that are well documented and create a pdf of what it does and shows the tokens used for each tool and a chart of the agentic workflows, and also maps out the functionality of the program. also make it so that it can search for venues in any state. make sure the python code has docstrings and comments where appropriate."
 
@@ -23,7 +23,7 @@ User decisions:
 - [x] **2. Venues in every state**
   - Add a `state` column to venues.
   - Keep the 10 NY/NJ venues, and add about 2 fictional venues for every other state plus DC. A deterministic generator builds them from real city names, with made-up venue names and addresses marked "(fictional)".
-  - `search_venues(state=…)` accepts "TX" or "Texas".
+  - `search_venues(state=â€¦)` accepts "TX" or "Texas".
   - Sales tax per state: the state base rate, labeled approximate. NYC venues keep 8.875%.
   - Update prompts, the UI greeting and the suggested prompts so they're nationwide.
   - A new default database file, so the old one is neither migrated in place nor deleted.
@@ -65,12 +65,12 @@ User decisions:
 
 - **Built:**
   - venues in all 50 states plus DC: 214 fictional venues, a `state` filter, per-state tax
-  - guardrails G1–G7 in `banquet/guardrails.py`
+  - guardrails G1â€“G7 in `banquet/guardrails.py`
   - the harness: events, redacted traces, a token ledger per agent and per tool, 6 scenarios, 8 scorers, simulated and live modes
   - `docs/how-it-works.pdf` (11 pages): screens, a functionality map, an agentic workflow chart, guardrails, the harness, and tokens per tool and per agent, labeled simulated
   - launchers; no `os`; path confinement; docstrings everywhere
 - **Verified:**
-  - 179 tests pass
+  - 205 tests pass (179 at first; 26 more after the CI fix)
   - the simulated suite passes 6/6 scenarios with 8/8 scorers each
   - I reviewed every PDF page visually (rendered to PNG in `.cache/`)
 - **Found and fixed during the build:**

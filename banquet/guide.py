@@ -392,6 +392,32 @@ def build_html(summary, shots):
         ["Pricing Analyst", "low", "get_venue_details, build_quote", "Prices options and compares them to the budget (read-only)"],
     ]
 
+    # Tables whose cells contain backslashes (".\\run.ps1") are built here, outside the f-string:
+    # Python 3.10 and 3.11 don't allow backslashes inside f-string expressions.
+    interfaces_tbl = _table(["Interface", "What it offers"], [
+        ["Web chat <code>.\\run.ps1 serve</code>", "Chat, venue cards, holds panel with Confirm / Release, agent activity with tokens"],
+        ["Terminal <code>.\\run.ps1 cli --verbose</code>", "Chat, <code>/holds</code>, <code>/confirm &lt;id&gt;</code> after y/N, per-call token printout"],
+        ["REST API", "<code>POST /api/chat</code>, <code>GET /api/venues?state=TX</code>, <code>GET /api/venues/{id}</code>, <code>GET /api/sessions/{id}/holds</code>, <code>POST /api/bookings/{id}/confirm</code> and <code>/cancel</code>"],
+        ["Harness <code>.\\run.ps1 scenarios</code>", "Six scripted conversations, eight scorers, a token ledger, simulated or live"],
+    ])
+    harness_tbl = _table(["Part", "What it does"], [
+        ["Runtime events", "<code>model_call</code> (agent, usage, latency, stop reason, tools requested and their argument sizes), <code>tool_call</code>, <code>tool_result</code> (ok/error, latency, result size) and <code>guardrail</code> events. A specialist's events carry the id of the delegation call that started it."],
+        ["Trace", "<code>runs/&lt;id&gt;/&lt;scenario&gt;/trace.jsonl</code>: every event, emails redacted (G5)."],
+        ["Token ledger", "Exact usage per agent; attributed usage per tool (see below); cost at the configured claude-opus-5-5 prices."],
+        ["Scenarios", "Six scripted conversations: Texas wedding with a hold, Ohio corporate dinner, NYC gala on a booked date, a Denver price guess (G4), a hold without an email (G3), an off-topic request and an injection (G1)."],
+        ["Scorers", "completed · venues_in_state · prices_grounded · expected_guardrails · holds · read_only_specialists · no_tools_when_declining · within_budget"],
+        ["Modes", "<b>Simulated</b>: free, offline, scripted agents, estimated tokens. <b>Live</b>: real Claude agents, real usage, a cost cap (default $5) checked between scenarios. In live mode, G3 and G4 may fire but aren't required, since real agents rarely misbehave on cue."],
+    ])
+    running_tbl = _table(["Command", "What it does"], [
+        ["<code>.\\run.ps1 serve</code>", "Web app on http://127.0.0.1:8000 with live agents (needs ANTHROPIC_API_KEY)"],
+        ["<code>.\\run.ps1 serve --simulated</code>", "Web app with the scripted stand-in: no key, no cost"],
+        ["<code>.\\run.ps1 cli --verbose</code>", "Terminal chat with agent activity and tokens"],
+        ["<code>.\\run.ps1 test</code>", "Offline test suite: booking rules, states, guardrails, agents, harness, API, CLAUDE.md scans"],
+        ["<code>.\\run.ps1 scenarios</code>", "Scenario suite, simulated; writes runs/&lt;id&gt;/"],
+        ["<code>.\\run.ps1 scenarios --live --max-cost 5</code>", "Scenario suite with real Claude agents; cost cap checked between scenarios"],
+        ["<code>.\\run.ps1 install-browser</code> then <code>.\\run.ps1 guide</code>", "Re-take the screenshots and rebuild this PDF"],
+    ])
+
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Banquet Concierge: how it works</title>
 <style>{CSS}</style></head><body>
 
@@ -435,12 +461,7 @@ place of Claude (so the agents' wording is scripted, but every tool result, card
 <p>Everything the program does, grouped into six areas.</p>
 {functionality_svg(n_venues)}
 <h3>Interfaces at a glance</h3>
-{_table(["Interface", "What it offers"], [
-    ["Web chat <code>.\\run.ps1 serve</code>", "Chat, venue cards, holds panel with Confirm / Release, agent activity with tokens"],
-    ["Terminal <code>.\\run.ps1 cli --verbose</code>", "Chat, <code>/holds</code>, <code>/confirm &lt;id&gt;</code> after y/N, per-call token printout"],
-    ["REST API", "<code>POST /api/chat</code>, <code>GET /api/venues?state=TX</code>, <code>GET /api/venues/{id}</code>, <code>GET /api/sessions/{id}/holds</code>, <code>POST /api/bookings/{id}/confirm</code> and <code>/cancel</code>"],
-    ["Harness <code>.\\run.ps1 scenarios</code>", "Six scripted conversations, eight scorers, a token ledger, simulated or live"],
-])}
+{interfaces_tbl}
 </section>
 
 <section>
@@ -476,14 +497,7 @@ no file deletions, the server bound to 127.0.0.1, and security headers on every 
 <h2>5. The harness</h2>
 <p>The harness wraps the agent team without changing it. The runtime emits an event for every model call and tool
 call; the harness records, measures and scores them.</p>
-{_table(["Part", "What it does"], [
-    ["Runtime events", "<code>model_call</code> (agent, usage, latency, stop reason, tools requested and their argument sizes), <code>tool_call</code>, <code>tool_result</code> (ok/error, latency, result size) and <code>guardrail</code> events. A specialist's events carry the id of the delegation call that started it."],
-    ["Trace", "<code>runs/&lt;id&gt;/&lt;scenario&gt;/trace.jsonl</code>: every event, emails redacted (G5)."],
-    ["Token ledger", "Exact usage per agent; attributed usage per tool (see below); cost at the configured claude-opus-5-5 prices."],
-    ["Scenarios", "Six scripted conversations: Texas wedding with a hold, Ohio corporate dinner, NYC gala on a booked date, a Denver price guess (G4), a hold without an email (G3), an off-topic request and an injection (G1)."],
-    ["Scorers", "completed · venues_in_state · prices_grounded · expected_guardrails · holds · read_only_specialists · no_tools_when_declining · within_budget"],
-    ["Modes", "<b>Simulated</b>: free, offline, scripted agents, estimated tokens. <b>Live</b>: real Claude agents, real usage, a cost cap (default $5) checked between scenarios. In live mode, G3 and G4 may fire but aren't required, since real agents rarely misbehave on cue."],
-])}
+{harness_tbl}
 <h3>How tokens are attributed to tools</h3>
 <p>The API reports usage per model call, not per tool, so the ledger attributes it:</p>
 <ul>
@@ -515,15 +529,7 @@ cost the most to read.</p>
 
 <section>
 <h2>7. Running it</h2>
-{_table(["Command", "What it does"], [
-    ["<code>.\\run.ps1 serve</code>", "Web app on http://127.0.0.1:8000 with live agents (needs ANTHROPIC_API_KEY)"],
-    ["<code>.\\run.ps1 serve --simulated</code>", "Web app with the scripted stand-in: no key, no cost"],
-    ["<code>.\\run.ps1 cli --verbose</code>", "Terminal chat with agent activity and tokens"],
-    ["<code>.\\run.ps1 test</code>", "Offline test suite: booking rules, states, guardrails, agents, harness, API, CLAUDE.md scans"],
-    ["<code>.\\run.ps1 scenarios</code>", "Scenario suite, simulated; writes runs/&lt;id&gt;/"],
-    ["<code>.\\run.ps1 scenarios --live --max-cost 5</code>", "Scenario suite with real Claude agents; cost cap checked between scenarios"],
-    ["<code>.\\run.ps1 install-browser</code> then <code>.\\run.ps1 guide</code>", "Re-take the screenshots and rebuild this PDF"],
-])}
+{running_tbl}
 <h3>Limits</h3>
 <ul>
 <li>Venues are fictional. Sales tax is the state base rate (approximate; local and meals taxes are not modeled), except the original New York and New Jersey venues, which use combined local rates.</li>
