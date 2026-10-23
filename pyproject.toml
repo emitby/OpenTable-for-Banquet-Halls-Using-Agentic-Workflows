@@ -19,6 +19,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "httpx>=0.27"]
+guide = ["playwright>=1.44"]   # only for building docs/how-it-works.pdf
 
 [project.scripts]
 banquet-cli = "banquet.cli:main"
@@ -32,3 +33,5 @@ banquet = ["static/*.html"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+# No .pytest_cache folder; tests use in-memory databases and .cache/test-output/, never the system temp folder.
+addopts = "-p no:cacheprovider"

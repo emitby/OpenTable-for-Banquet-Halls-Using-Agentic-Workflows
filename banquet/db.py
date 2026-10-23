@@ -1,15 +1,30 @@
 """SQLite storage and sample data.
 
-All venues are fictional. Seed bookings are placed relative to today so the
-demo always has some dates that are already taken.
+All venues are **fictional**. There are two groups:
+
+* The original 10 hand-written venues around New York City (:data:`VENUES`).
+* Four generated venues in every state and DC, two in each of two sample cities
+  (:func:`generated_venues`),
+  built deterministically from :mod:`banquet.states`, so a search in any state has
+  results and every run of the app sees the same data.
+
+Each venue stores its ``state`` and the ``tax_rate`` used in quotes. Seed bookings are
+placed relative to today, so the demo always has some dates that are already taken.
+
+Database file: :data:`DEFAULT_DB_PATH` (``data/banquet-v2.db``). The file name changed
+when the ``state`` and ``tax_rate`` columns were added, so an older ``data/banquet.db``
+is left untouched instead of being migrated in place or deleted (CLAUDE.md: never
+delete files). Every path goes through :func:`banquet.paths.confine`.
 """
 
 import json
 import sqlite3
 from datetime import date, timedelta
-from pathlib import Path
 
-DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "data" / "banquet.db"
+from banquet.paths import DATA_DIR, confine
+from banquet.states import STATES
+
+DEFAULT_DB_PATH = DATA_DIR / "banquet-v2.db"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS venues (
@@ -17,11 +32,14 @@ CREATE TABLE IF NOT EXISTS venues (
     name          TEXT NOT NULL,
     neighborhood  TEXT NOT NULL,
     city          TEXT NOT NULL,
+    state         TEXT NOT NULL,      -- two-letter code, see banquet/states.py
     address       TEXT NOT NULL,
     style         TEXT NOT NULL,
     description   TEXT NOT NULL,
-    rating        REAL NOT NULL
+    rating        REAL NOT NULL,
+    tax_rate      REAL NOT NULL       -- sales tax applied to the whole bill in quotes
 );
+CREATE INDEX IF NOT EXISTS idx_venues_state ON venues(state);
 
 CREATE TABLE IF NOT EXISTS halls (
     id                 INTEGER PRIMARY KEY,
@@ -217,16 +235,171 @@ SEED_BOOKINGS = [
 ]
 
 
+#: State and tax rate for the original venues. Rates are approximate combined state +
+#: local rates: New York City 8.875%, Nassau County (Glen Cove) 8.625%, New Jersey 6.625%.
+ORIGINAL_LOCATION = {
+    "Stonegate Estate": ("NY", 0.08625),
+    "Harbor Lantern Room": ("NJ", 0.06625),
+}
+NYC = ("NY", 0.08875)
+
+# ----------------------------------------------------------------- generated venues
+# Building blocks for the fictional venues in every state. Venue k (0, 1, 2, ...) takes
+# word k % 22 and kind (k // 22 + k) % 10. Venues k and k + 22m share a word, and their
+# kinds differ by 23m mod 10 = 3m mod 10, which is non-zero for m < 10. So the pair
+# (word, kind) is unique for k < 220, and no two of the 204 generated venues share a name.
+NAME_WORDS = ["Magnolia", "Juniper", "Silver Oak", "Harvest", "Cedar", "Lantern", "Willow",
+              "Golden Hour", "Copper Kettle", "Bluebird", "Ironwood", "Wildflower",
+              "Stone Mill", "Riverbend", "Highland", "Laurel", "Saltbox", "Briarwood",
+              "Larkfield", "Sycamore", "Hearthstone", "Meadowlark"]
+VENUES_PER_CITY = 2
+# (name suffix, style, size, amenities, description)
+KINDS = [
+    ("Ballroom", "classic ballroom", "large", ["dance floor", "stage", "AV system", "bridal suite", "coat check"],
+     "Chandeliered ballroom with a sprung dance floor and a separate reception salon."),
+    ("Hall", "banquet hall", "large", ["dance floor", "stage", "AV system", "parking"],
+     "Large-format banquet hall built for weddings and big family celebrations."),
+    ("Loft", "industrial loft", "medium", ["skyline view", "dance floor", "AV system", "freight elevator"],
+     "Converted warehouse loft with exposed brick, steel beams and tall windows."),
+    ("Pavilion", "garden pavilion", "medium", ["garden ceremony site", "heaters", "dance floor", "parking"],
+     "Open-air pavilion in landscaped gardens, enclosed and heated for cooler months."),
+    ("Estate", "estate & gardens", "large", ["garden ceremony site", "bridal suite", "overnight suites", "parking"],
+     "Historic-style estate with formal gardens and a glass-walled reception room."),
+    ("Club", "banquet hall", "large", ["dance floor", "private bar", "AV system", "parking"],
+     "Members'-club ballroom available for private events, with a full-service bar."),
+    ("Gardens", "garden venue", "medium", ["garden access", "outdoor ceremony lawn", "tent option", "parking"],
+     "Botanical garden venue with a ceremony lawn and a tented reception terrace."),
+    ("House", "intimate salon", "small", ["fireplace", "piano", "garden access"],
+     "Restored townhouse parlor for showers, rehearsal dinners and small receptions."),
+    ("Terrace", "rooftop terrace", "medium", ["skyline view", "heaters", "AV system", "private bar"],
+     "Rooftop terrace and glass-enclosed lounge with views over the city."),
+    ("Barn", "rustic barn", "medium", ["dance floor", "outdoor ceremony lawn", "string lights", "parking"],
+     "Restored timber barn with string lights, a ceremony meadow and a fire pit."),
+]
+NEIGHBORHOODS = ["Downtown", "Old Town", "Riverside", "Uptown", "Arts District", "Midtown"]
+STREETS = ["Main", "Oak", "Market", "Elm", "River", "Park", "Lake", "Union"]
+CUISINES = ["American", "Italian", "Mexican", "Southern", "BBQ", "Indian", "Mediterranean",
+            "Chinese", "Seafood", "Kosher", "Farm-to-table", "Korean", "Caribbean", "French"]
+#: A regional cuisine used for the first package of the first venue in these states.
+REGIONAL = {"TX": "Tex-Mex", "LA": "Cajun & Creole", "NM": "New Mexican", "HI": "Hawaiian",
+            "ME": "New England seafood", "MA": "New England seafood", "TN": "Southern BBQ",
+            "MD": "Chesapeake seafood", "CA": "Californian", "WI": "Midwestern"}
+DIETARY = [["vegetarian", "gluten-free"], ["vegetarian", "vegan", "gluten-free"], ["vegetarian", "halal"],
+           ["vegetarian", "kosher"], ["vegetarian", "vegan", "halal", "gluten-free"], ["vegetarian"]]
+
+
+def _halls_for(size, k):
+    """Return the halls for a generated venue of a given size, varied by ``k``.
+
+    Args:
+        size: ``"large"``, ``"medium"`` or ``"small"``.
+        k: The venue's index, used to vary fees and capacities deterministically.
+
+    Returns:
+        A list of ``(name, min_guests, seated, standing, rental_fee, amenities)``, the
+        same shape as the hand-written :data:`VENUES`. Amenities are filled in by the caller.
+    """
+    fee = 2000 + (k * 1370) % 8000 // 500 * 500           # $2,000-$9,500 in $500 steps
+    if size == "large":
+        seated = 300 + (k * 30) % 180                      # 300-450 seated
+        return [("Grand Hall", 100, seated, int(seated * 1.3), fee + 3000),
+                ("Salon", 30, 90, 130, max(1500, fee // 2))]
+    if size == "medium":
+        seated = 160 + (k * 20) % 100                      # 160-240 seated
+        return [("Main Room", 60, seated, int(seated * 1.4), fee)]
+    return [("Parlor", 15, 60, 90, max(1500, fee // 3))]
+
+
+def generated_venues():
+    """Build fictional venues for every state and DC: ``VENUES_PER_CITY`` in each sample city.
+
+    Everything is derived from the venue's index ``k``, so the data is identical on
+    every run, and tests can rely on it. Addresses are marked "(fictional)".
+
+    Returns:
+        A list of tuples ``(name, neighborhood, city, state, address, style, description,
+        rating, tax_rate, halls, packages)`` in the same layout :func:`_seed` inserts.
+    """
+    out, k = [], 0
+    for code, (_, tax_rate, cities) in STATES.items():
+        for i, city in enumerate(cities * VENUES_PER_CITY):
+            word = NAME_WORDS[k % len(NAME_WORDS)]
+            suffix, style, size, amenities, description = KINDS[(k // len(NAME_WORDS) + k) % len(KINDS)]
+            name = f"The {word} {suffix}"
+            hood = NEIGHBORHOODS[k % len(NEIGHBORHOODS)]
+            address = f"{100 + (k * 37) % 800} {STREETS[k % len(STREETS)]} St (fictional), {city}, {code}"
+            rating = round(4.1 + (k * 17 % 80) / 100, 1)   # 4.1-4.9
+            halls = [h + (amenities,) for h in _halls_for(size, k)]
+            first = REGIONAL.get(code) if i == 0 else None
+            c1 = first or CUISINES[k % len(CUISINES)]
+            c2 = CUISINES[(k + 5) % len(CUISINES)]
+            base = 70 + (k * 13) % 90                      # $70-$159 per guest
+            packages = [
+                ("Signature Dinner", c1, base + 25, "Cocktail hour, plated dinner, open bar",
+                 DIETARY[k % len(DIETARY)]),
+                ("Celebration Buffet", c2, base, "Buffet dinner, beer and wine bar, dessert table",
+                 DIETARY[(k + 2) % len(DIETARY)]),
+            ]
+            out.append((name, hood, city, code, address, style, description, rating, tax_rate,
+                        halls, packages))
+            k += 1
+    return out
+
+
+def all_venues():
+    """Every venue to seed: the original 10 (with their state and tax) plus the generated ones.
+
+    Returns:
+        A list in the tuple layout documented in :func:`generated_venues`.
+    """
+    originals = []
+    for name, hood, city, address, style, desc, rating, halls, packages in VENUES:
+        state, tax = ORIGINAL_LOCATION.get(name, NYC)
+        originals.append((name, hood, city, state, address, style, desc, rating, tax, halls, packages))
+    return originals + generated_venues()
+
+
+# ----------------------------------------------------------------- connection and seeding
+
 def connect(db_path=DEFAULT_DB_PATH):
-    db_path = Path(db_path)
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path, check_same_thread=False)
+    """Open (creating if needed) the SQLite database.
+
+    Args:
+        db_path: A path inside the project, or ``":memory:"`` for a throwaway database
+            (used by the tests, so they never write to the system temp folder).
+
+    Returns:
+        A :class:`sqlite3.Connection` with ``Row`` results and foreign keys enabled. It
+        may be shared across threads; :class:`~banquet.services.BanquetService` serializes
+        writes with a lock.
+
+    Raises:
+        banquet.paths.PathError: If ``db_path`` is outside the project folder.
+
+    Side effects:
+        Creates the parent folder of a file database.
+    """
+    path = confine(db_path)
+    if path != ":memory:":
+        path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(path), check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 
 def init_db(conn, seed=True, today=None):
+    """Create the tables, and seed sample data if the database is empty.
+
+    Args:
+        conn: An open connection from :func:`connect`.
+        seed: Whether to insert the sample venues and bookings.
+        today: The date seed bookings are placed relative to (default: today). Tests
+            pass a fixed date so "booked in 30 days" is predictable.
+
+    Side effects:
+        Creates tables and indexes, inserts rows, commits.
+    """
     conn.executescript(SCHEMA)
     already_seeded = conn.execute("SELECT COUNT(*) FROM venues").fetchone()[0] > 0
     if seed and not already_seeded:
@@ -235,12 +408,21 @@ def init_db(conn, seed=True, today=None):
 
 
 def _seed(conn, today):
+    """Insert every venue, hall and package, then the seed bookings.
+
+    Seed bookings refer to the original venues by their position in :data:`VENUES`,
+    which is why the originals are inserted first.
+
+    Args:
+        conn: An open connection.
+        today: Base date for the seed bookings.
+    """
     hall_ids = []
-    for name, hood, city, address, style, desc, rating, halls, packages in VENUES:
+    for name, hood, city, state, address, style, desc, rating, tax, halls, packages in all_venues():
         venue_id = conn.execute(
-            "INSERT INTO venues (name, neighborhood, city, address, style, description, rating)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (name, hood, city, address, style, desc, rating),
+            "INSERT INTO venues (name, neighborhood, city, state, address, style, description, rating,"
+            " tax_rate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (name, hood, city, state, address, style, desc, rating, tax),
         ).lastrowid
         venue_halls = []
         for hall_name, min_g, seated, standing, fee, amenities in halls:

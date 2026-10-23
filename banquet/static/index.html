@@ -29,6 +29,7 @@
   .msg p { margin: 0 0 6px; } .msg p:last-child { margin: 0; }
   details.activity { font-size: 12px; color: var(--muted); margin-top: 6px; }
   details.activity li { list-style: none; }
+  details.activity li.guard { color: var(--warn); }
   .typing { color: var(--muted); font-style: italic; }
   form { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--line); }
   textarea { flex: 1; resize: none; font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; min-height: 44px; max-height: 140px; }
@@ -59,12 +60,12 @@
 <main>
   <section class="chat">
     <div id="log">
-      <div class="msg bot"><p>Hi! I can help you find and reserve a banquet hall in the New York area. What are you celebrating, roughly how many guests, and when?</p></div>
+      <div class="msg bot"><p>Hi! I can help you find and reserve a banquet hall anywhere in the United States. What are you celebrating, roughly how many guests, where, and when?</p></div>
     </div>
     <div class="suggestions" id="suggestions">
+      <button>Wedding for 180 in Austin, Texas next October</button>
+      <button>Corporate dinner for 120 in Columbus, Ohio in March</button>
       <button>Wedding for 250 in Queens next June, Indian food</button>
-      <button>Corporate holiday party for 120 in Manhattan in December</button>
-      <button>Bridal shower for 35 on the Upper West Side</button>
     </div>
     <form id="form">
       <textarea id="input" placeholder="Describe your event…" rows="1"></textarea>
@@ -107,13 +108,20 @@ function addMessage(cls, html) {
 }
 
 function activityHtml(events) {
+  // Tool calls, plus any guardrail that fired, plus the turn's total tokens from model_call events.
   const calls = events.filter((e) => e.type === "tool_call");
-  if (!calls.length) return "";
+  const guards = events.filter((e) => e.type === "guardrail");
+  const tokens = events.filter((e) => e.type === "model_call")
+    .reduce((n, e) => n + e.usage.input + e.usage.output + e.usage.cache_write + e.usage.cache_read, 0);
+  if (!calls.length && !guards.length) return "";
   const label = {ask_venue_scout: "asked the Venue Scout", ask_pricing_analyst: "asked the Pricing Analyst",
     search_venues: "searched venues", get_venue_details: "read venue details", check_availability: "checked availability",
     build_quote: "built a quote", show_venues: "showed venue cards", place_hold: "placed a hold"};
-  const items = calls.map((e) => `<li>${esc(e.agent)} ${esc(label[e.tool] || e.tool)}</li>`).join("");
-  return `<details class="activity"><summary>Agent activity (${calls.length} steps)</summary><ul>${items}</ul></details>`;
+  const items = calls.map((e) => `<li>${esc(e.agent)} ${esc(label[e.tool] || e.tool)}</li>`).join("")
+    + guards.map((e) => `<li class="guard">Guardrail ${esc(e.guardrail)}: ${esc(e.reason)}</li>`).join("");
+  const tok = tokens ? ` · ${tokens.toLocaleString()} tokens` : "";
+  const steps = `${calls.length} step${calls.length === 1 ? "" : "s"}`;
+  return `<details class="activity"><summary>Agent activity (${steps}${tok})</summary><ul>${items}</ul></details>`;
 }
 
 function renderVenues(venues) {
@@ -124,7 +132,7 @@ function renderVenues(venues) {
     const amenities = [...new Set(v.halls.flatMap((h) => h.amenities))].slice(0, 6);
     return `<div class="card">
       <h3>${esc(v.name)}</h3>
-      <div class="meta">${esc(v.neighborhood)}, ${esc(v.city)} · ${esc(v.style)} · ★ ${v.rating} · up to ${cap} seated · from ${money(fromPrice)}/guest</div>
+      <div class="meta">${esc(v.neighborhood)}, ${esc(v.city)}, ${esc(v.state)} · ${esc(v.style)} · ★ ${v.rating} · up to ${cap} seated · from ${money(fromPrice)}/guest</div>
       <p>${esc(v.description)}</p>
       <div class="chips">${amenities.map((a) => `<span class="chip">${esc(a)}</span>`).join("")}</div>
     </div>`;

@@ -1,7 +1,9 @@
 """Chat with the Concierge in the terminal.
 
-    python -m banquet.cli            # chat
-    python -m banquet.cli --verbose  # also show what each agent is doing
+    .\\run.ps1 cli               # chat
+    .\\run.ps1 cli --verbose     # also show what each agent is doing and the tokens used
+
+Commands while chatting: ``/holds``, ``/confirm <id>`` (asks y/N first), ``/quit``.
 """
 
 import argparse
@@ -13,11 +15,19 @@ from banquet.db import DEFAULT_DB_PATH, connect, init_db
 from banquet.services import BanquetService, BookingError
 
 
-def main():
+def main(argv=None):
+    """Run the chat loop until ``/quit`` or end of input.
+
+    Args:
+        argv: Command-line arguments (default: ``sys.argv[1:]``).
+
+    Side effects:
+        Reads from stdin, prints to stdout, and may place or confirm holds in the database.
+    """
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--db", default=DEFAULT_DB_PATH)
-    parser.add_argument("--verbose", action="store_true", help="print agent activity")
-    args = parser.parse_args()
+    parser.add_argument("--verbose", action="store_true", help="print agent activity and token usage")
+    args = parser.parse_args(argv)
 
     conn = connect(args.db)
     init_db(conn)
@@ -49,10 +59,23 @@ def main():
             for e in result["events"]:
                 if e["type"] == "tool_call":
                     print(f"  · {e['agent']} → {e['tool']}")
+                elif e["type"] == "model_call":
+                    u = e["usage"]
+                    print(f"  · {e['agent']} model call: {u['input'] + u['cache_read'] + u['cache_write']:,} in"
+                          f" / {u['output']:,} out tokens")
+                elif e["type"] == "guardrail":
+                    print(f"  · guardrail {e['guardrail']}: {e['reason']}")
         print(f"\nconcierge> {result['reply']}\n")
 
 
 def _confirm(service, session, text):
+    """Handle ``/confirm <id>``: only this session's holds, and only after the customer types y.
+
+    Args:
+        service: The booking service.
+        session: The chat session (its holds are the only ones that can be confirmed here).
+        text: The command line the customer typed.
+    """
     parts = text.split()
     if len(parts) != 2 or not parts[1].isdigit():
         print("  usage: /confirm <hold id>")
