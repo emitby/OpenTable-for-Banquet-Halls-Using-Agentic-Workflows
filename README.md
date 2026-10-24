@@ -3,6 +3,7 @@
 **An OpenTable-style booking app for banquet halls in every US state, run by three cooperating Claude agents whose guardrails are enforced in code, where only the customer can confirm a booking.**
 
 [![CI](https://github.com/emitby/OpenTable-for-Banquet-Halls-Using-Agentic-Workflows/actions/workflows/ci.yml/badge.svg)](https://github.com/emitby/OpenTable-for-Banquet-Halls-Using-Agentic-Workflows/actions/workflows/ci.yml)
+[![Evals](https://github.com/emitby/OpenTable-for-Banquet-Halls-Using-Agentic-Workflows/actions/workflows/evals.yml/badge.svg)](https://github.com/emitby/OpenTable-for-Banquet-Halls-Using-Agentic-Workflows/actions/workflows/evals.yml)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![Tests](https://img.shields.io/badge/tests-259%20passing-success)
 ![Live trials](https://img.shields.io/badge/live%20trials-27%2F27-success)

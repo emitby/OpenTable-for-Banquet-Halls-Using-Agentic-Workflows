@@ -1,0 +1,25 @@
+# Offline evals on every push: free, deterministic, no API key.
+# Red-team (66 cases), independent pricing cross-check (4,816 quotes) and nine scripted conversations with 14 scorers each.
+# Live trials with the real agents cost money and run locally: see docs/evals.md.
+name: Evals
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Red-team, pricing cross-check, scenario scorers
+        run: python -m evals.run_evals
