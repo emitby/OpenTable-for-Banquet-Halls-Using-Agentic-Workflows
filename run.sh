@@ -14,7 +14,8 @@ case "$cmd" in
   cli)             exec "$PY" -m banquet.cli "$@" ;;
   test)            exec "$PY" -m pytest -q "$@" ;;
   scenarios)       exec "$PY" -m banquet.harness.run_scenarios "$@" ;;
+  eval)            exec "$PY" -m evals.run_evals "$@" ;;
   install-browser) exec "$PY" -m playwright install chromium ;;
   guide)           exec "$PY" -m banquet.guide "$@" ;;
-  *) echo "usage: ./run.sh serve|cli|test|scenarios|install-browser|guide" ;;
+  *) echo "usage: ./run.sh serve|cli|test|scenarios|eval|install-browser|guide" ;;
 esac

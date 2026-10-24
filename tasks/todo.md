@@ -93,3 +93,20 @@ User decisions:
 - **Not done (by user decision):** no live API run. The token numbers are simulated estimates.
 - **Not pushed to GitHub** (not requested).
 - **Outside-folder note:** before the fix, the first three PDF builds let Chromium create its throwaway profile in the system temp folder. Chromium removes that profile itself when it closes; I didn't access or delete anything there.
+
+# Task: comprehensive evals (2026-10-24)
+
+Request: "add comprehensive evals and then update the pdf's and commit all changes to github and retag once they have evals".
+
+- [x] Red-team (`evals/redteam.py`): 66 cases (46 attacks, 20 benign look-alikes) across G1–G7 and the booking rules
+- [x] Independent pricing cross-check (`evals/crosscheck_pricing.py`): 4,816 quotes, 302 halls, 50 states + DC, 0 mismatches
+- [x] Six eval scorers (`evals/scorers.py`) on top of the eight harness scorers; three new scenarios (DC, Wyoming by name, oversized message)
+- [x] Runner (`evals/run_evals.py`, `run.ps1 eval`): offline layers plus live trials with pass rates per scorer; results in `evals/results/`
+- [x] Planted-defect tests (`tests/test_evals.py`): each layer fails when its guardrail or rule is broken; 255 tests pass
+- [x] PDF guide: new Evals section, cover stats, nine scenarios; README results-first layout; `docs/evals.md`
+- [ ] Live trials: blocked. The first live trial stopped when the Anthropic account ran out of API credits (6 of 9 conversations ran). The runner now records such errors and stops cleanly instead of crashing.
+
+## Review
+- Found while building: the hold-limit red-team first read the limit from the code, so raising it passed vacuously; it now checks the documented policy of 3.
+- Found while building: a live API error crashed the runner and lost the scored conversations; errors are now recorded per conversation and account problems stop the run with the reason.
+- Fixed in the README: double-encoded characters (`â†’`, `Â·`, box-drawing) that GitHub showed as garbage.

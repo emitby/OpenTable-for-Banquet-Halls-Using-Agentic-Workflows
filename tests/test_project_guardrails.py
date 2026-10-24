@@ -16,7 +16,7 @@ import pytest
 from banquet.paths import PROJECT_DIR, PathError, confine
 from banquet.serve import HOST
 
-SOURCES = sorted(p for d in ("banquet", "tests") for p in (PROJECT_DIR / d).rglob("*.py"))
+SOURCES = sorted(p for d in ("banquet", "tests", "evals") for p in (PROJECT_DIR / d).rglob("*.py"))
 
 
 def test_sources_found():

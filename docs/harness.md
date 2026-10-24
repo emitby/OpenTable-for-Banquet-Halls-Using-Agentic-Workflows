@@ -42,8 +42,11 @@ The API reports usage per model call, not per tool, so per-tool usage is attribu
 | `denver-price-guess` | The Concierge first writes an unquoted price; **G4** sends it back |
 | `hold-without-email` | A hold attempted with an email the customer never gave; **G3** refuses |
 | `off-topic-injection` | An off-topic request is declined; an injection is stopped by **G1** |
+| `dc-baby-shower` | Washington, DC, a district rather than a state, resolves and stays in DC |
+| `wyoming-reunion` | The state is given by its full name, so "Wyoming" must map to WY |
+| `oversized-message` | A message over the length limit is refused by **G1** before any model call |
 
-Every scenario must pass all eight scorers:
+Every scenario must pass all eight scorers (the eval suite adds six more; see [evals.md](evals.md)):
 
 | Scorer | What it checks |
 |---|---|

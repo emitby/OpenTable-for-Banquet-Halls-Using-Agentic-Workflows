@@ -7,6 +7,7 @@
 #   .\run.ps1 cli [--verbose] [--db ...]                    terminal chat
 #   .\run.ps1 test                                          offline test suite
 #   .\run.ps1 scenarios [--live --max-cost 5]               harness scenarios (simulated by default)
+#   .\run.ps1 eval [--live --trials 3 --max-cost 8]         evals: red-team, pricing cross-check, 14 scorers
 #   .\run.ps1 install-browser                               Chromium for the PDF guide, into .cache\
 #   .\run.ps1 guide                                         screenshots + docs\how-it-works.pdf
 param([Parameter(Position = 0)][string]$Command = "help",
@@ -28,8 +29,9 @@ switch ($Command) {
     "cli"             { & $Py -m banquet.cli @Rest }
     "test"            { & $Py -m pytest -q @Rest }
     "scenarios"       { & $Py -m banquet.harness.run_scenarios @Rest }
+    "eval"            { & $Py -m evals.run_evals @Rest }
     "install-browser" { & $Py -m playwright install chromium }
     "guide"           { & $Py -m banquet.guide @Rest }
-    default           { Get-Content (Join-Path $Root "run.ps1") -TotalCount 11 }
+    default           { Get-Content (Join-Path $Root "run.ps1") -TotalCount 12 }
 }
 exit $LASTEXITCODE
