@@ -210,6 +210,26 @@ def test_live_run_stops_cleanly_on_an_account_problem(monkeypatch):
     assert "error" in sc["conversations"][0]
 
 
+def test_combine_merges_parts_into_trials_with_pass_rates():
+    """Two one-trial parts become one two-trial result; a failed part makes the whole fail."""
+    from evals.run_evals import combine
+    folder = CACHE_DIR / "test-output" / "combine"
+    good = run_all(write=False, only="texas-wedding")
+    bad = json.loads(json.dumps(good, default=str))
+    bad["scenarios"]["conversations"][0]["passed"] = False
+    paths = []
+    for i, part in enumerate((good, good, bad)):
+        path = folder / f"part{i}.json"
+        from banquet.paths import write_text
+        write_text(path, json.dumps(part, default=str))
+        paths.append(path)
+    two = combine(paths[:2], write=False)
+    assert two["ok"] and two["scenarios"]["trials"] == 2
+    assert two["scenarios"]["scenario_pass_rates"]["texas-wedding"] == [2, 2]
+    three = combine(paths, write=False)
+    assert not three["ok"] and three["scenarios"]["scenario_pass_rates"]["texas-wedding"] == [2, 3]
+
+
 def test_dates_in_scenarios_are_in_the_future():
     """Every date a scenario asks for is in the future, so live trials never request past dates."""
     plans = [t["plan"] for sc in SCENARIOS.values() for t in sc["turns"] if t["plan"].get("date")]

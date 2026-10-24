@@ -4,7 +4,8 @@
 
 [![CI](https://github.com/emitby/OpenTable-for-Banquet-Halls-Using-Agentic-Workflows/actions/workflows/ci.yml/badge.svg)](https://github.com/emitby/OpenTable-for-Banquet-Halls-Using-Agentic-Workflows/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
-![Tests](https://img.shields.io/badge/tests-255%20passing-success)
+![Tests](https://img.shields.io/badge/tests-259%20passing-success)
+![Live trials](https://img.shields.io/badge/live%20trials-27%2F27-success)
 ![Red-team](https://img.shields.io/badge/red--team-66%2F66-success)
 ![Pricing cross-check](https://img.shields.io/badge/pricing%20cross--check-4%2C816%20quotes%2C%200%20mismatches-success)
 ![Claude](https://img.shields.io/badge/model-claude--opus--5--5-8a5a2b)
@@ -23,12 +24,14 @@
 
 | Eval | Result |
 |---|---|
-| Unit tests (booking rules, guardrails, agents, harness, API, evals, CLAUDE.md scans) | **255 / 255 passing** on Python 3.10–3.12 in CI |
+| Unit tests (booking rules, guardrails, agents, harness, API, evals, CLAUDE.md scans) | **259 / 259 passing** on Python 3.10–3.12 in CI |
 | Guardrail red-team: 46 attacks on G1–G7 and the booking rules, plus 20 benign look-alikes | **66 / 66**, with no attack let through and no ordinary request blocked |
 | Independent pricing cross-check: quotes re-derived from the raw tables by separate code | **4,816 quotes in all 50 states + DC, 0 mismatches** to the cent |
 | Scripted conversations through the real tools and guardrails, 14 scorers each (simulated agents) | **9 / 9** conversations, **14 / 14** scorers at 100% |
 | Planted-defect tests: each eval must fail when its guardrail or rule is broken | **all pass**, so no eval passes vacuously |
-| Live trials with the real agents | Pending: the first trial was cut short when the API account ran out of credits ([details](docs/evals.md#5-live-trials)) |
+| Live trials with the real agents (`claude-opus-5-5`), 3 trials × 9 conversations | **27 / 27** conversations, **14 / 14** scorers at 100%, $3.04 in total |
+| Live guardrail catches | G4 sent back an agent-computed dollar figure in 5 of 27 conversations; every corrected reply was grounded |
+| Found by the live trials | A race in the shared database connection under parallel tool calls, fixed with a regression test ([details](docs/evals.md#what-the-live-trials-found)) |
 
 Run it yourself with `.\run.ps1 eval` (free, offline) or `.\run.ps1 eval --live --trials 3 --max-cost 8`. Every layer is described in [docs/evals.md](docs/evals.md).
 
@@ -232,7 +235,7 @@ Every response carries security headers: a CSP, `nosniff`, `X-Frame-Options: DEN
 .\run.ps1 test
 ```
 
-The 255 tests make **no API calls**, and they write nothing outside the project: they use in-memory databases and `.cache/test-output/`. Agent tests use a scripted fake client.
+The 259 tests make **no API calls**, and they write nothing outside the project: they use in-memory databases and `.cache/test-output/`. Agent tests use a scripted fake client.
 
 | Area | Covered |
 |---|---|

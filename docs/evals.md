@@ -12,11 +12,11 @@ Banquet Concierge is evaluated in five layers, from cheapest to most realistic. 
 
 | Layer | Code | What it proves | Latest result |
 |---|---|---|---|
-| 1. Unit tests | `tests/` | Booking rules, states, guardrails, agents, harness, API, evals, CLAUDE.md scans | **255 passing** on Python 3.10–3.12 |
+| 1. Unit tests | `tests/` | Booking rules, states, guardrails, agents, harness, API, evals, CLAUDE.md scans | **259 passing** on Python 3.10–3.12 |
 | 2. Red-team | `evals/redteam.py` | Every guardrail blocks its attacks **and** lets benign look-alikes through | **66 / 66** |
 | 3. Pricing cross-check | `evals/crosscheck_pricing.py` | Quotes re-derived from the raw tables by separate code agree to the cent | **4,816 quotes, 0 mismatches** |
 | 4. Scenario scorers | `evals/scorers.py` + `banquet/harness/scenarios.py` | Nine conversations through the real tools and guardrails, 14 scorers each | **9 / 9** conversations, 14 / 14 scorers at 100% (simulated) |
-| 5. Live trials | `evals/run_evals.py --live` | The same conversations with the real agents, repeated | See [Live trials](#5-live-trials) |
+| 5. Live trials | `evals/run_evals.py --live` | The same conversations with the real agents, repeated | **27 / 27** conversations over 3 trials, 14 / 14 scorers, $3.04 ([details](#5-live-trials)) |
 
 ## 1. Unit tests
 
@@ -105,7 +105,41 @@ In simulated mode the agents follow a script, but every tool result, guardrail, 
 - **Spending is capped.** The cap is checked between conversations.
 - **Account problems stop the run.** No credit, a bad key or no permission ends it with the reason, and keeps every conversation already scored.
 
-**Status (2026-10-24):** the first live trial was cut short when the Anthropic account ran out of API credits. Six of the nine conversations had run with the real agents before the API refused further calls. That run's scores were lost to a crash, which led to the fix above. Live pass rates will be reported here once a full trial has run.
+### Results (2026-10-24, `claude-opus-5-5`, 3 trials × 9 conversations)
+
+| | Result |
+|---|---|
+| Conversations passed | **27 / 27** |
+| Every scorer (all 14) | **27 / 27** |
+| Cost and tokens | **$3.04** for all three trials, 724,006 tokens including cache reads |
+| G1 (input) acted | 6 conversations, as designed: the injection and the oversized message, every trial |
+| G4 (price grounding) acted | 5 conversations, each time catching a real agent's slip (below) |
+| G4's fallback warning needed | **0**: every reply G4 sent back was corrected on the first retry |
+
+**Where G4 caught the live agents.** These are dollar figures the Concierge produced itself rather than taking from a quote. G4 sent each reply back, and the corrected reply used only quoted amounts:
+
+| Trial | Scenario | Amounts sent back |
+|---|---|---|
+| 1 | denver-price-guess | $20,000, $31,000 (a rough range for "roughly what would it cost?") |
+| 2 | denver-price-guess | $200, $310 (a per-guest range) |
+| 2 | dc-baby-shower | $2,700 |
+| 3 | texas-wedding | $4,000 |
+| 3 | denver-price-guess | $20,000, $31,000, $200, $310 |
+
+The Denver scenario invites an estimate, and the live agent reached for one in every trial. This is the case the guardrail exists for.
+
+The combined results are in `evals/results/20261024-104340-live.json`. Each trial was run as its own command (`--part`) and joined with `.\run.ps1 eval --combine <parts>`, because one trial takes about five minutes.
+
+## What the live trials found
+
+- **A concurrency bug in the booking service, now fixed.**
+  - **What happened:** in the first live trial, the Venue Scout called `get_venue_details` for several venues at once. One call crashed with an empty hall row; the runtime turned it into an error result and the agent recovered.
+  - **Cause:** agents run tool calls in parallel threads on one shared SQLite connection. Only writes were locked, and overlapping reads returned other queries' rows or none: 608 errors in 1,770 parallel calls when reproduced.
+  - **Why only live caught it:** the simulated agents never made parallel `get_venue_details` calls.
+  - **The fix:** every `BanquetService` method now runs under one re-entrant lock (`services._serialized`). That gives 0 errors in the same reproduction.
+  - **Regression tests:** in `tests/test_services.py`. The read test fails on the old code and passes on the new.
+- **A scorer that contradicted its own documentation, now fixed.** The docs said G3 and G4 "may fire but aren't required" in live mode, but `expected_guardrails` still failed a live conversation whenever G4 fired. A live texas-wedding trial failed that way: G4 caught a $2,400 figure, and the final reply was correct. Live scoring now allows G3 and G4 to fire, and `prices_grounded` still checks that the final reply is grounded. Live results also report how often each guardrail acted, so the catches are counted rather than hidden.
+- **Earlier part files** in `evals/results/` (`…101200`, `…102007`, `…102543`) are from runs before these fixes. They're kept as history. The published numbers come only from the three trials on the final code.
 
 ## Limits
 

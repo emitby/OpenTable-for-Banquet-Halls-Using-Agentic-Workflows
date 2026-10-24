@@ -161,7 +161,8 @@ def score(scenario, transcript, live=False):
         * ``prices_grounded``: no final reply contains an unsupported dollar amount
           (that is, G4 never had to fall back to its warning note).
         * ``expected_guardrails``: every required guardrail fired and no unexpected one did
-          (in simulated mode, that means exactly the expected set).
+          (in simulated mode, that means exactly the expected set; in live mode G3 and G4
+          may also fire, since catching a real agent's slip is their job).
         * ``holds``: the expected number of holds exists at the end.
         * ``read_only_specialists``: no specialist called a write tool.
         * ``no_tools_when_declining``: declined or blocked turns used no tools.
@@ -182,7 +183,11 @@ def score(scenario, transcript, live=False):
              if any(e.get("type") == "tool_call" for e in transcript[i]["events"])]
     turn_tokens = [sum(sum(e["usage"].values()) for e in t["events"] if e.get("type") == "model_call")
                    for t in transcript]
+    # Live agents may trip G3/G4 (e.g. a dollar figure the Concierge computed itself, which G4
+    # sends back for correction), so in live mode they're neither required nor forbidden.
+    # Whether the final reply was still grounded is checked separately by prices_grounded.
     required = expect["guardrails"] - MISBEHAVIOR_GUARDRAILS if live else expect["guardrails"]
+    allowed = expect["guardrails"] | MISBEHAVIOR_GUARDRAILS if live else expect["guardrails"]
     return {
         "completed": {"ok": all(t["reply"].strip() for t in transcript) and len(transcript) == len(scenario["turns"]),
                       "detail": f"{len(transcript)}/{len(scenario['turns'])} turns answered"},
@@ -190,7 +195,7 @@ def score(scenario, transcript, live=False):
                             "detail": f"{len(cards)} cards" + (f"; wrong state: {wrong_state}" if wrong_state else "")},
         "prices_grounded": {"ok": not fallbacks,
                             "detail": "all amounts traced to tool results" if not fallbacks else "fallback note used"},
-        "expected_guardrails": {"ok": required <= fired <= expect["guardrails"],
+        "expected_guardrails": {"ok": required <= fired <= allowed,
                                 "detail": f"fired {sorted(fired) or 'none'}, expected {sorted(expect['guardrails']) or 'none'}"},
         "holds": {"ok": len(final_holds) == expect["holds"],
                   "detail": f"{len(final_holds)} hold(s), expected {expect['holds']}"},

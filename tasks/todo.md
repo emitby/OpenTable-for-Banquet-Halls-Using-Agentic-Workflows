@@ -110,3 +110,9 @@ Request: "add comprehensive evals and then update the pdf's and commit all chang
 - Found while building: the hold-limit red-team first read the limit from the code, so raising it passed vacuously; it now checks the documented policy of 3.
 - Found while building: a live API error crashed the runner and lost the scored conversations; errors are now recorded per conversation and account problems stop the run with the reason.
 - Fixed in the README: double-encoded characters (`â†’`, `Â·`, box-drawing) that GitHub showed as garbage.
+
+## Live trials (2026-10-24, after API credits were added)
+- [x] 3 trials x 9 conversations on the final code: 27/27, all 14 scorers 27/27, $3.04
+- [x] Found and fixed: a race on the shared SQLite connection under parallel tool calls (608/1,770 parallel reads failed; now 0); regression tests in test_services.py
+- [x] Found and fixed: live expected_guardrails contradicted the docs (G4 catching an agent-computed $2,400 failed the conversation); live results now count guardrail firings
+- [x] Runner: --part and --combine, since one trial takes ~5 minutes and commands are kept in the foreground

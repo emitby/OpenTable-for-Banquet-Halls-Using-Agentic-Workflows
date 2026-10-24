@@ -135,3 +135,14 @@ def test_trace_files_are_redacted_and_confined():
     assert json.loads((out / "report.json").read_text(encoding="utf-8")) == {"say": "I'm Ada, <email>"}
     with pytest.raises(PathError):
         confine(confine(".").parent / "outside.txt")
+
+
+def test_live_scoring_allows_g4_to_catch_a_real_slip():
+    """Live mode: G4 sending back a figure the agent computed itself is allowed (found in a live
+    trial: "$2,400" in texas-wedding). Simulated mode still requires exactly the expected set."""
+    sc = build_scenarios(date(2026, 10, 22))["texas-wedding"]
+    turn = {"say": "x", "reply": "Here are your options.", "events": [], "venues": [], "holds": [{}],
+            "guardrails": ["G4 grounding: sent back $2,400"]}
+    transcript = [turn, {**turn, "guardrails": []}]
+    assert score(sc, transcript, live=True)["expected_guardrails"]["ok"]
+    assert not score(sc, transcript, live=False)["expected_guardrails"]["ok"]

@@ -6,6 +6,7 @@ Every number a customer sees (prices, totals, deposits, availability) is compute
 here, in plain Python, never by a model.
 """
 
+import functools
 import json
 import threading
 from datetime import date, datetime, timedelta
@@ -49,6 +50,24 @@ def _parse_date(value):
         raise BookingError(f"Invalid date {value!r}; use YYYY-MM-DD.") from None
 
 
+def _serialized(method):
+    """Run a :class:`BanquetService` method while holding the service's lock.
+
+    One SQLite connection is shared by every agent, and agents run tool calls in parallel
+    threads. Python's ``sqlite3`` connection isn't safe for concurrent use: overlapping
+    queries can return another query's rows or none at all (a live eval trial hit this:
+    ``get_venue_details`` failed with an empty hall row). So every public method, reads
+    included, runs one at a time. The lock is re-entrant, because write methods call read
+    methods (``place_hold`` calls ``build_quote`` and ``get_booking``).
+    """
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        """Call ``method`` under ``self._lock``."""
+        with self._lock:
+            return method(self, *args, **kwargs)
+    return wrapper
+
+
 class BanquetService:
     """The booking rules over a SQLite connection: search, availability, quotes, holds.
 
@@ -57,7 +76,8 @@ class BanquetService:
         clock: A function returning "now" as a ``datetime``. Tests pass a fake clock to
             control hold expiry.
 
-    Writes (holds, confirmations, cancellations) take ``self._lock`` so two requests
+    Every public method holds ``self._lock`` (see :func:`_serialized`): reads, because the
+    shared connection isn't safe for concurrent queries, and writes, so two requests
     can't book the same hall and date at once.
     """
 
@@ -65,10 +85,11 @@ class BanquetService:
         """Store the connection and clock (see the class docstring)."""
         self.conn = conn
         self.clock = clock
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
 
     # ------------------------------------------------------------------ reads
 
+    @_serialized
     def search_venues(self, guest_count=None, city=None, state=None, style=None, cuisine=None,
                       dietary=None, amenities=None, max_price_per_guest=None,
                       event_date=None):
@@ -151,6 +172,7 @@ class BanquetService:
             })
         return results
 
+    @_serialized
     def get_venue(self, venue_id):
         """Return one venue with every hall and package.
 
@@ -174,6 +196,7 @@ class BanquetService:
             "halls": self._halls(venue_id), "packages": self._packages(venue_id),
         }
 
+    @_serialized
     def check_availability(self, hall_id, event_date, alternatives=3):
         """Report whether a hall is free on a date, with the nearest free dates if not.
 
@@ -210,6 +233,7 @@ class BanquetService:
             result["nearest_open_dates"] = [d.isoformat() for d in sorted(nearby[:alternatives])]
         return result
 
+    @_serialized
     def build_quote(self, hall_id, package_id, event_date, guest_count):
         """Price a hall + catering package for a date and guest count.
 
@@ -281,6 +305,7 @@ class BanquetService:
             "deposit_due": round(total * DEPOSIT_RATE, 2), "notes": notes,
         }
 
+    @_serialized
     def get_booking(self, booking_id):
         """Return one booking with its venue, hall and package names.
 
@@ -312,6 +337,7 @@ class BanquetService:
 
     # ----------------------------------------------------------------- writes
 
+    @_serialized
     def place_hold(self, hall_id, package_id, event_date, guest_count, event_type,
                    customer_name, customer_email):
         """Reserve a hall and date for ``HOLD_HOURS``. A hold is free and non-binding.
@@ -360,6 +386,7 @@ class BanquetService:
             self.conn.commit()
         return {**self.get_booking(booking_id), "quote": quote}
 
+    @_serialized
     def confirm_booking(self, booking_id, customer_email):
         """Turn a hold into a confirmed booking. Only the customer can do this.
 
@@ -392,6 +419,7 @@ class BanquetService:
             self.conn.commit()
         return self.get_booking(booking_id)
 
+    @_serialized
     def cancel_booking(self, booking_id, customer_email):
         """Cancel a booking or release a hold (customer only, like :meth:`confirm_booking`).
 
@@ -420,6 +448,7 @@ class BanquetService:
 
     # ---------------------------------------------------------------- helpers
 
+    @_serialized
     def active_holds(self, booking_ids):
         """Count the unexpired holds among some booking ids (used by the hold-limit guardrail).
 

@@ -175,3 +175,54 @@ def test_hold_date_validation(svc, day, match):
     h, packages = hall(svc, "The Copperleaf", "Full Buyout")
     with pytest.raises(BookingError, match=match):
         svc.place_hold(h["hall_id"], packages[0]["package_id"], day, 80, "party", "Ada", "ada@example.com")
+
+
+def test_parallel_tool_calls_never_see_each_others_rows():
+    """Regression (found by a live eval trial): agents run tool calls in parallel threads on one
+    shared connection. Overlapping queries used to return wrong or empty rows ("No venue with
+    id 12", or a hall whose amenities were None). Every service method is now serialized."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    conn = connect(":memory:")
+    init_db(conn)
+    service = BanquetService(conn)
+    ids = [r["id"] for r in conn.execute("SELECT id FROM venues")]
+    expected = {v: service.get_venue(v)["name"] for v in ids}
+
+    def read(venue_id):
+        """Read one venue and an overlapping search; return any mismatch or error."""
+        try:
+            venue = service.get_venue(venue_id)
+            service.search_venues(state=venue["state"], guest_count=50)
+            service.check_availability(venue["halls"][0]["hall_id"], "2027-06-12")
+            return None if venue["name"] == expected[venue_id] else f"{venue_id}: wrong venue"
+        except Exception as exc:
+            return f"{venue_id}: {type(exc).__name__}: {exc}"
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        problems = [p for p in pool.map(read, ids * 5) if p]
+    assert problems == []
+
+
+def test_parallel_holds_on_one_hall_and_date_book_it_once():
+    """Eight simultaneous holds for the same hall and date: exactly one succeeds."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    conn = connect(":memory:")
+    init_db(conn)
+    service = BanquetService(conn)
+    hall = conn.execute("SELECT * FROM halls ORDER BY id LIMIT 1").fetchone()
+    package = conn.execute("SELECT id FROM packages WHERE venue_id = ? LIMIT 1", (hall["venue_id"],)).fetchone()
+    day = (date.today() + timedelta(days=100)).isoformat()
+
+    def hold(i):
+        """Try one hold; True if it was placed."""
+        try:
+            service.place_hold(hall["id"], package["id"], day, max(hall["min_guests"], 40), "wedding",
+                               f"Guest {i}", f"guest{i}@example.com")
+            return True
+        except BookingError:
+            return False
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        assert sum(pool.map(hold, range(8))) == 1
